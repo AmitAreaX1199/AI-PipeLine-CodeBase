@@ -59,5 +59,7 @@ urlpatterns = [
     path('sessionstitle_api', views.AllSessionTitleAPI.as_view(), name='sessionstitle_api'), ##18april
     path('onefeed_new', views.GenerateSmartContentAPI.as_view(), name='sessionstitle_api'), ##18april
     path('deletechat_session', views.DeleteChatHistoryAPI.as_view(), name='sessionstitle_api'), ##18april
+    path('wellness_bot', views.WellnessBotAPIView.as_view(), name='wellness_bot'), ##23may
+    path('time_machine', views.SchedulingAgentAPIView.as_view(), name='time_machine'), ##23may
 ]
 
