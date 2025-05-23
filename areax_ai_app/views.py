@@ -37,6 +37,7 @@ from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.tools.googlecalendar import GoogleCalendarTools
 from tzlocal import get_localzone_name
+from .models import SchedulingAssistantLog
 import random
 from datetime import datetime
 load_dotenv()
@@ -3187,3 +3188,76 @@ class DeleteChatHistoryAPI(APIView):
             }, status=status.HTTP_200_OK)
         except ChatSession.DoesNotExist:
             return Response({"error": "Chat session not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SchedulingAgentAPIView(APIView):
+    """
+    API View for Google Calendar Assistant using Gemini model.
+    Handles natural language requests for calendar operations.
+    """
+    
+    def post(self, request, *args, **kwargs):
+        # Get user message from request
+        message = request.data.get("message", "")
+        user_reference_number = request.data.get("user_reference_number", "")
+        user_email = request.data.get("user_email", "")
+        
+        if not message:
+            return Response(
+                {"error": "Message is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            timezone = get_localzone_name()
+            
+            # Initialize the Gemini model
+            model = Gemini(id="gemini-2.0-flash")
+            
+            # Initialize GoogleCalendarTools
+            calendar_tools = GoogleCalendarTools()
+            
+            instructions = f"""
+            You are a helpful Google Calendar assistant. 
+            Current datetime: {current_datetime}
+            User's timezone: {timezone}
+            
+            You can help users with:
+            1. Creating calendar events with specific start/end times
+            2. Retrieving scheduled events
+            3. Answering questions about their calendar
+            
+            Always confirm the details before creating events and provide clear responses.
+            """
+            
+            # Initialize the Agent with model, tools, and instructions
+            agent = Agent(
+                model=model,
+                tools=[calendar_tools],
+                instructions=instructions,
+                show_tool_calls=True
+            )
+            
+            # Generate response using the agent
+            response = agent.run(message)
+            
+            log_entry = SchedulingAssistantLog(
+                message=message,
+                response=response
+            )
+            log_entry.save()
+            
+            # Return the response
+            return Response({
+                "status": status.HTTP_200_OK,
+                "user_reference_number": user_reference_number,
+                "user_email": user_email,
+                "response": response
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
