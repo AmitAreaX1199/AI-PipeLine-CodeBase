@@ -37,6 +37,7 @@ from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.tools.googlecalendar import GoogleCalendarTools
 from tzlocal import get_localzone_name
+from .models import SchedulingAssistantLog, WellnessBotLog
 import random
 from datetime import datetime
 load_dotenv()
@@ -3187,3 +3188,78 @@ class DeleteChatHistoryAPI(APIView):
             }, status=status.HTTP_200_OK)
         except ChatSession.DoesNotExist:
             return Response({"error": "Chat session not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class WellnessBotAPIView(APIView):
+    """
+    API View for a virtual wellness coach using Gemini model.
+    Handles natural language requests for wellness routines, meal plans, and mental health support.
+    Uses conversational AI without tools.
+    """
+    
+    def post(self, request, *args, **kwargs):
+        # Get user message from request
+        message = request.data.get("message", "")
+        user_reference_number = request.data.get("user_reference_number", "")
+        user_email = request.data.get("user_email", "")
+        
+        if not message:
+            return Response(
+                {"error": "Message is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Initialize the Gemini model
+            model = Gemini(id="gemini-2.0-flash")
+            
+            instructions = """
+            You are WellnessBot, a friendly and supportive virtual wellness coach. 
+            
+            You can help users with:
+            1. Wellness routines - Suggest yoga poses, journaling prompts, and exercise routines tailored to the user's needs and preferences.
+            2. Meal plans - Provide vegetarian, high-protein, and other dietary meal suggestions with simple recipes.
+            3. Mental health support ideas - Recommend screen-free activities, breathing techniques, and mindfulness exercises.
+            4. Motivation - Act as a simulated friend to provide encouragement and accountability for wellness goals.
+            
+            Important guidelines:
+            - NEVER provide medical advice or diagnose conditions
+            - Focus on general wellness practices and lifestyle suggestions
+            - Be supportive, positive, and encouraging
+            - Personalize suggestions based on user preferences when provided
+            - Suggest realistic and accessible wellness activities
+            - When suggesting meal plans, include simple recipes with common ingredients
+            - For mental health support, focus on evidence-based techniques like mindfulness and breathing exercises
+            
+            Always maintain a friendly, supportive tone and encourage sustainable wellness practices.
+            """
+            
+            # Initialize the Agent with model and instructions (no tools)
+            agent = Agent(
+                model=model,
+                instructions=instructions,
+                show_tool_calls=False
+            )
+            
+            # Generate response using the agent
+            response = agent.run(message)
+            
+            log_entry = WellnessBotLog(
+                message=message,
+                response=response
+            )
+            log_entry.save()
+            
+            # Return the response
+            return Response({
+                "status": status.HTTP_200_OK,
+                "user_reference_number": user_reference_number,
+                "user_email": user_email,
+                "response": response
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
